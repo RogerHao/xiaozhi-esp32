@@ -11,10 +11,10 @@
 在 `main/boards/waveshare-c6-lcd-1.69/config.h` 中进行了以下修改：
 
 ```cpp
-// 顺时针旋转90度：交换宽高，启用XY交换
+// 顺时针旋转90度：交换宽高，启用XY交换，并设置正确的镜像
 #define DISPLAY_WIDTH           280
 #define DISPLAY_HEIGHT          240
-#define DISPLAY_MIRROR_X        false
+#define DISPLAY_MIRROR_X        true
 #define DISPLAY_MIRROR_Y        false
 #define DISPLAY_SWAP_XY         true
 #define DISPLAY_RGB_ORDER       LCD_RGB_ELEMENT_ORDER_RGB
@@ -87,7 +87,7 @@ git rebase main
 #define DISPLAY_WIDTH           280
 #define DISPLAY_HEIGHT          240
 #define DISPLAY_SWAP_XY         true
-#define DISPLAY_MIRROR_X        true
+#define DISPLAY_MIRROR_X        false
 #define DISPLAY_MIRROR_Y        true
 #define DISPLAY_OFFSET_X        20
 #define DISPLAY_OFFSET_Y        0
