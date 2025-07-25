@@ -33,16 +33,18 @@
 
 
 
-#define DISPLAY_WIDTH           240
-#define DISPLAY_HEIGHT          280
+// 顺时针旋转90度：交换宽高，启用XY交换
+#define DISPLAY_WIDTH           280
+#define DISPLAY_HEIGHT          240
 #define DISPLAY_MIRROR_X        false
 #define DISPLAY_MIRROR_Y        false
-#define DISPLAY_SWAP_XY         false
+#define DISPLAY_SWAP_XY         true
 #define DISPLAY_RGB_ORDER       LCD_RGB_ELEMENT_ORDER_RGB
 #define DISPLAY_INVERT_COLOR    true
 
-#define DISPLAY_OFFSET_X        0
-#define DISPLAY_OFFSET_Y        20
+// 调整偏移以适应旋转后的显示
+#define DISPLAY_OFFSET_X        20
+#define DISPLAY_OFFSET_Y        0
 
 #define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_6
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
