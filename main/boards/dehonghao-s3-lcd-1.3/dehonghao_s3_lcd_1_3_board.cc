@@ -5,9 +5,10 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "led/single_led.h"
 #include "mcp_server.h"
 #include "lamp_controller.h"
+#include "led/single_led.h"
+#include "led/pwm_rgb_led.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -17,19 +18,18 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 
-#define TAG "DehonghaoS3LCD1.3"
+#define TAG "DehonghaoS3Lcd13Board"
 
 LV_FONT_DECLARE(font_puhui_16_4);
 LV_FONT_DECLARE(font_awesome_16_4);
 
-class DehonghaoS3Lcd1_3Board : public WifiBoard {
+class DehonghaoS3Lcd13Board : public WifiBoard {
 private:
+ 
     Button boot_button_;
-    Button touch_button_;
-    Button asr_button_;
     LcdDisplay* display_;
+    PwmRgbLed* rgb_led_;
 
-    // SPI初始化
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = DISPLAY_MOSI_PIN;
@@ -41,11 +41,10 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    // ST7789显示屏初始化
-    void InitializeSt7789Display() {
+    void InitializeLcdDisplay() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
-        
+        // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
@@ -57,7 +56,8 @@ private:
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
-        ESP_LOGD(TAG, "Install ST7789 LCD driver");
+        // 初始化液晶屏驱动芯片
+        ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
@@ -65,89 +65,92 @@ private:
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
         
         esp_lcd_panel_reset(panel);
+ 
+
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
-                                    DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
                                         .text_font = &font_puhui_16_4,
                                         .icon_font = &font_awesome_16_4,
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
                                         .emoji_font = font_emoji_32_init(),
+#else
+                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+#endif
                                     });
     }
 
-    // 按钮初始化
-    void InitializeButtons() {
-        // 配置内置LED GPIO
-        gpio_config_t io_conf = {
-            .pin_bit_mask = 1ULL << BUILTIN_LED_GPIO,
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE
-        };
-        gpio_config(&io_conf);
 
-        // Boot按钮 - 切换聊天状态
+ 
+    void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
             }
-            gpio_set_level(BUILTIN_LED_GPIO, 1);
             app.ToggleChatState();
-        });
-
-        // ASR按钮 - 唤醒词触发
-        asr_button_.OnClick([this]() {
-            std::string wake_word = "你好小智";
-            Application::GetInstance().WakeWordInvoke(wake_word);
-        });
-
-        // 触摸按钮 - 语音识别控制
-        touch_button_.OnPressDown([this]() {
-            gpio_set_level(BUILTIN_LED_GPIO, 1);
-            Application::GetInstance().StartListening();
-        });
-
-        touch_button_.OnPressUp([this]() {
-            gpio_set_level(BUILTIN_LED_GPIO, 0);
-            Application::GetInstance().StopListening();
         });
     }
 
-    // MCP工具初始化
+    // 物联网初始化，添加对 AI 可见设备
     void InitializeTools() {
-        // 添加LED灯控制
-        static LampController lamp(LAMP_GPIO);
+        auto& mcp_server = McpServer::GetInstance();
+        
+        rgb_led_ = new PwmRgbLed(RGB_R_PIN, RGB_G_PIN, RGB_B_PIN);
+
+        mcp_server.AddTool("rgb_light.turn_on", "打开RGB灯", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            rgb_led_->TurnOn();
+            return true;
+        });
+
+        mcp_server.AddTool("rgb_light.turn_off", "关闭RGB灯", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
+            rgb_led_->TurnOff();
+            return true;
+        });
+
+        mcp_server.AddTool("rgb_light.set_rgb", "设置RGB颜色", PropertyList({
+            Property("r", kPropertyTypeInteger, 0, 255),
+            Property("g", kPropertyTypeInteger, 0, 255),
+            Property("b", kPropertyTypeInteger, 0, 255)
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int r = properties["r"].value<int>();
+            int g = properties["g"].value<int>();
+            int b = properties["b"].value<int>();
+            
+            rgb_led_->SetColor(r, g, b);
+            if (!rgb_led_->IsOn()) {
+                rgb_led_->TurnOn();
+            }
+            return true;
+        });
     }
 
 public:
-    DehonghaoS3Lcd1_3Board() :
-        boot_button_(BOOT_BUTTON_GPIO), 
-        touch_button_(TOUCH_BUTTON_GPIO), 
-        asr_button_(ASR_BUTTON_GPIO) {
-        
+    DehonghaoS3Lcd13Board() :
+        boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
-        InitializeSt7789Display();
+        InitializeLcdDisplay();
         InitializeButtons();
         InitializeTools();
-        
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
+        
     }
 
-    // 获取音频编解码器
+    virtual Led* GetLed() override {
+        static SingleLed led(BUILTIN_LED_GPIO);
+        return &led;
+    }
+
     virtual AudioCodec* GetAudioCodec() override {
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
-            AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
+            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
 #else
         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
@@ -155,12 +158,10 @@ public:
         return &audio_codec;
     }
 
-    // 获取显示屏
     virtual Display* GetDisplay() override {
         return display_;
     }
 
-    // 获取背光控制
     virtual Backlight* GetBacklight() override {
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
@@ -170,5 +171,4 @@ public:
     }
 };
 
-// 注册开发板
-DECLARE_BOARD(DehonghaoS3Lcd1_3Board); 
+DECLARE_BOARD(DehonghaoS3Lcd13Board); 

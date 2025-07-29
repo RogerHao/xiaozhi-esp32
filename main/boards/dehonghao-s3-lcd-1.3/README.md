@@ -12,11 +12,11 @@
 ## 硬件连接
 
 ### 显示屏连接 (SPI)
-- **MOSI**: GPIO 4
-- **SCLK**: GPIO 15  
-- **CS**: GPIO 22
-- **DC**: GPIO 21
-- **RST**: GPIO 18
+- **MOSI**: GPIO 4 (Pin 4 - 右侧)
+- **SCLK**: GPIO 15 (Pin 8 - 左侧)  
+- **CS**: GPIO 22 (Pin 18 - 右侧)
+- **DC**: GPIO 21 (Pin 18 - 右侧)
+- **RST**: GPIO 18 (Pin 11 - 左侧)
 - **BL**: GPIO 23 (背光控制)
 
 ### 音频连接 (I2S)
@@ -26,18 +26,23 @@
   - DIN: GPIO 32
 
 - **扬声器**:
-  - BCLK: GPIO 14
+  - BCLK: GPIO 14 (Pin 19 - 右侧)
   - LRCK: GPIO 27
   - DOUT: GPIO 33
 
 ### 按钮连接
-- **Boot按钮**: GPIO 0
-- **触摸按钮**: GPIO 5
-- **ASR按钮**: GPIO 19
-- **内置LED**: GPIO 2
+- **Boot按钮**: GPIO 0 (Pin 14 - 右侧)
+- **触摸按钮**: GPIO 5 (Pin 5 - 左侧)
+- **ASR按钮**: GPIO 19 (Pin 13 - 左侧)
+- **内置LED**: GPIO 2 (Pin 3 - 右侧)
 
-### MCP设备
-- **LED灯**: GPIO 12
+### RGB彩灯
+- **WS2812B**: GPIO 48 (Pin 16 - 右侧)
+
+### 其他引脚
+- **电源**: 3V3 (Pin 2, 21 - 左侧), 5V0 (Pin 21 - 右侧)
+- **地**: GND (Pin 1 - 左右两侧)
+- **复位**: RST (Pin 3 - 左侧)
 
 ## 编译和烧录
 
@@ -60,7 +65,7 @@ python scripts/release.py dehonghao-s3-lcd-1.3
    - Boot按钮: 切换聊天状态
    - 触摸按钮: 语音识别控制
    - ASR按钮: 唤醒词触发
-4. **MCP支持**: 支持LED灯控制等MCP设备
+4. **RGB彩灯**: 支持WS2812B可编程RGB彩灯控制
 5. **WiFi连接**: 支持WiFi网络连接
 
 ## 配置说明
@@ -83,6 +88,8 @@ python scripts/release.py dehonghao-s3-lcd-1.3
 2. 显示屏的SPI引脚连接正确
 3. 音频I2S引脚配置正确
 4. 首次使用需要配置WiFi网络
+5. 引脚定义基于ESP32S3-DevKitC-1开发板，其他开发板可能需要调整
+6. RGB彩灯使用WS2812B协议，需要3.3V供电
 
 ## 故障排除
 
@@ -101,8 +108,16 @@ python scripts/release.py dehonghao-s3-lcd-1.3
 - 确认网络环境
 - 检查天线连接
 
+### RGB彩灯不工作
+- 检查GPIO48连接
+- 确认3.3V电源供电
+- 检查WS2812B数据线连接
+- 确认RGB彩灯数量配置正确
+
 ## 开发者信息
 
 - **开发者**: 郝德宏 (RogerHao)
 - **基于**: bread-compact-esp32-lcd
-- **适配**: ESP32S3 + 1.3寸ST7789显示屏 
+- **适配**: ESP32S3 + 1.3寸ST7789显示屏
+- **参考硬件**: ESP32S3-DevKitC-1开发板
+- **RGB彩灯**: WS2812B协议，GPIO48控制 
