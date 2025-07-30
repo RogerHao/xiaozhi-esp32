@@ -37,7 +37,8 @@
 - **内置LED**: GPIO 2 (Pin 3 - 右侧)
 
 ### RGB彩灯
-- **WS2812B**: GPIO 48 (Pin 16 - 右侧)
+- **WS2812B**: GPIO 48 (Pin 16 - 右侧) - 板载RGB彩灯，用于显示对话状态
+- **外接RGB灯**: GPIO 9, 10, 11 (Pin 17, 18, 19 - 右侧) - 支持MCP云端控制的PWM RGB灯
 
 ### 其他引脚
 - **电源**: 3V3 (Pin 2, 21 - 左侧), 5V0 (Pin 21 - 右侧)
@@ -65,8 +66,11 @@ python scripts/release.py dehonghao-s3-lcd-1.3
    - Boot按钮: 切换聊天状态
    - 触摸按钮: 语音识别控制
    - ASR按钮: 唤醒词触发
-4. **RGB彩灯**: 支持WS2812B可编程RGB彩灯控制
+4. **RGB彩灯**: 
+   - 板载WS2812B可编程RGB彩灯控制，显示对话状态
+   - 外接PWM RGB灯，支持MCP云端控制
 5. **WiFi连接**: 支持WiFi网络连接
+6. **MCP协议**: 支持云端控制外接RGB灯
 
 ## 配置说明
 
@@ -82,6 +86,34 @@ python scripts/release.py dehonghao-s3-lcd-1.3
 - 输出采样率: 24kHz
 - 模式: Simplex (麦克风和扬声器分离)
 
+### RGB灯配置
+- **板载WS2812B**: GPIO48，用于显示对话状态
+- **外接PWM RGB灯**: GPIO9(R), GPIO10(G), GPIO11(B)，支持MCP云端控制
+
+## MCP控制功能
+
+### 外接RGB灯控制
+通过MCP协议可以远程控制外接的RGB灯：
+
+1. **打开RGB灯**: `rgb_light.turn_on`
+2. **关闭RGB灯**: `rgb_light.turn_off`  
+3. **设置RGB颜色**: `rgb_light.set_rgb` (参数: r, g, b，范围0-255)
+
+### 使用示例
+```python
+# 打开红色灯
+mcp.rgb_light.turn_on()
+
+# 设置绿色
+mcp.rgb_light.set_rgb(r=0, g=255, b=0)
+
+# 设置蓝色
+mcp.rgb_light.set_rgb(r=0, g=0, b=255)
+
+# 关闭灯
+mcp.rgb_light.turn_off()
+```
+
 ## 注意事项
 
 1. 确保使用正确的ESP32S3开发板配置
@@ -89,7 +121,9 @@ python scripts/release.py dehonghao-s3-lcd-1.3
 3. 音频I2S引脚配置正确
 4. 首次使用需要配置WiFi网络
 5. 引脚定义基于ESP32S3-DevKitC-1开发板，其他开发板可能需要调整
-6. RGB彩灯使用WS2812B协议，需要3.3V供电
+6. 板载RGB彩灯使用WS2812B协议，需要3.3V供电
+7. 外接RGB灯使用PWM控制，共阴极连接，支持全彩控制
+8. 避免使用GPIO33-GPIO37，这些引脚被Octal SPI PSRAM占用
 
 ## 故障排除
 
@@ -108,11 +142,22 @@ python scripts/release.py dehonghao-s3-lcd-1.3
 - 确认网络环境
 - 检查天线连接
 
-### RGB彩灯不工作
+### 板载RGB彩灯不工作
 - 检查GPIO48连接
 - 确认3.3V电源供电
 - 检查WS2812B数据线连接
 - 确认RGB彩灯数量配置正确
+
+### 外接RGB灯不工作
+- 检查GPIO9, 10, 11连接
+- 确认共阴极连接正确
+- 检查PWM频率设置
+- 确认LEDC定时器配置正确
+
+### 系统不稳定或屏幕闪烁
+- 检查是否使用了被占用的GPIO引脚
+- 确认LEDC定时器没有冲突
+- 检查PWM通道分配是否正确
 
 ## 开发者信息
 
@@ -120,4 +165,5 @@ python scripts/release.py dehonghao-s3-lcd-1.3
 - **基于**: bread-compact-esp32-lcd
 - **适配**: ESP32S3 + 1.3寸ST7789显示屏
 - **参考硬件**: ESP32S3-DevKitC-1开发板
-- **RGB彩灯**: WS2812B协议，GPIO48控制 
+- **板载RGB彩灯**: WS2812B协议，GPIO48控制
+- **外接RGB灯**: PWM控制，GPIO9/10/11，支持MCP云端控制 
