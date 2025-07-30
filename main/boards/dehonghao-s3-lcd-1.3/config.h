@@ -62,4 +62,7 @@
 #define RGB_G_PIN GPIO_NUM_10
 #define RGB_B_PIN GPIO_NUM_11
 
+// MCP Servo Control
+#define SERVO_PIN GPIO_NUM_12
+
 #endif // _BOARD_CONFIG_H_ 

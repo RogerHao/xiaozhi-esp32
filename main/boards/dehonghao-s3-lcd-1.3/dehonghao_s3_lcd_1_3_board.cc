@@ -9,6 +9,7 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "led/pwm_rgb_led.h"
+#include "servo_controller.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -37,6 +38,7 @@ private:
     Button boot_button_;        // Boot按钮对象，用于检测按键事件
     LcdDisplay* display_;       // 显示屏对象指针，管理LCD显示
     PwmRgbLed* rgb_led_;       // PWM RGB灯对象指针，控制外接RGB灯
+    ServoController* servo_;    // 舵机控制器对象指针，控制舵机
 
     /**
      * @brief 初始化SPI总线
@@ -155,6 +157,10 @@ private:
         // 创建PWM RGB灯对象，使用GPIO 9, 10, 11控制红绿蓝三色
         rgb_led_ = new PwmRgbLed(RGB_R_PIN, RGB_G_PIN, RGB_B_PIN);
 
+        // 创建舵机控制器对象，使用GPIO 12控制舵机
+        servo_ = new ServoController(SERVO_PIN);
+        servo_->Initialize();
+
         // 注册"打开RGB灯"工具
         mcp_server.AddTool("rgb_light.turn_on", "打开RGB灯", PropertyList(), 
             [this](const PropertyList& properties) -> ReturnValue {
@@ -189,6 +195,66 @@ private:
             }
             return true;  // 返回成功
         });
+
+        // 注册舵机控制工具
+        // 基础角度控制
+        mcp_server.AddTool("servo.set_angle", "设置舵机角度", PropertyList({
+            Property("angle", kPropertyTypeInteger, 0, 180)  // 角度范围0-180度
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int angle = properties["angle"].value<int>();
+            esp_err_t ret = servo_->SetAngle(angle);
+            return ret == ESP_OK;
+        });
+
+        // 预设角度控制
+        mcp_server.AddTool("servo.set_preset", "设置舵机到预设角度", PropertyList({
+            Property("preset", kPropertyTypeString)  // 预设值：0, 90, 180
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            const std::string& preset = properties["preset"].value<std::string>();
+            int angle = 90;  // 默认中间位置
+            
+            if (preset == "0") {
+                angle = 0;
+            } else if (preset == "90") {
+                angle = 90;
+            } else if (preset == "180") {
+                angle = 180;
+            } else {
+                return false;  // 无效的预设值
+            }
+            
+            esp_err_t ret = servo_->SetAngle(angle);
+            return ret == ESP_OK;
+        });
+
+        // 摆动控制
+        mcp_server.AddTool("servo.oscillate", "舵机摆动", PropertyList({
+            Property("start_angle", kPropertyTypeInteger, 0, 180),  // 起始角度
+            Property("end_angle", kPropertyTypeInteger, 0, 180),    // 结束角度
+            Property("cycles", kPropertyTypeInteger, 1, 10),        // 摆动次数，1-10次
+            Property("period_ms", kPropertyTypeInteger, 500, 5000)  // 摆动周期，500-5000毫秒
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            int start_angle = properties["start_angle"].value<int>();
+            int end_angle = properties["end_angle"].value<int>();
+            int cycles = properties["cycles"].value<int>();
+            int period_ms = properties["period_ms"].value<int>();
+            
+            esp_err_t ret = servo_->Oscillate(start_angle, end_angle, cycles, period_ms);
+            return ret == ESP_OK;
+        });
+
+        // 停止舵机
+        mcp_server.AddTool("servo.stop", "停止舵机摆动", PropertyList(), 
+            [this](const PropertyList& properties) -> ReturnValue {
+                servo_->Stop();
+                return true;
+            });
+
+        // 获取当前角度
+        mcp_server.AddTool("servo.get_angle", "获取舵机当前角度", PropertyList(), 
+            [this](const PropertyList& properties) -> ReturnValue {
+                return servo_->GetAngle();
+            });
     }
 
 public:
